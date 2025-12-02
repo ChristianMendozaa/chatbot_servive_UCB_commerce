@@ -1,80 +1,57 @@
 # Chatbot Service - UCB Commerce
 
-Microservicio de asistencia inteligente basado en **RAG (Retrieval-Augmented Generation)** para la plataforma UCB Commerce. Este servicio actúa como el núcleo cognitivo de la atención al cliente, proporcionando respuestas contextualizadas en tiempo real sobre productos, inventario y procesos institucionales.
+An intelligent conversational agent powered by **RAG (Retrieval-Augmented Generation)** to assist users with product inquiries and institutional information.
 
-## 🚀 Características Principales
+## The Problem
+Standard e-commerce search bars are limited. Users often have complex questions like "What's the best laptop for an architecture student under $1000?" or "Do you have the biology textbook in stock?". A keyword search fails here. We needed a system that understands **intent** and **context**.
 
-- **Arquitectura RAG Avanzada**: Combina la potencia de modelos LLM (Llama 3.1 vía Groq) con una base de conocimiento vectorial dinámica.
-- **Sincronización en Tiempo Real**: Mantiene una consistencia estricta con el catálogo de productos. Cualquier cambio en precios, stock o disponibilidad en el `products-service` se refleja instantáneamente en los embeddings del chatbot, garantizando que el asistente nunca ofrezca información obsoleta.
-- **Diseño Modular**: Estructurado siguiendo los principios de *Clean Architecture* para facilitar la escalabilidad y el mantenimiento.
-- **Base de Conocimiento Híbrida**: Integra información institucional estática (políticas, horarios) con datos transaccionales dinámicos (productos).
-
-## 🛠 Stack Tecnológico
-
-- **Runtime**: Python 3.10+
-- **Framework Web**: FastAPI (High performance async framework)
-- **Vector Database**: Supabase (pgvector)
-- **LLM Inference**: Groq (Llama 3.1-8b-instant)
-- **Embeddings**: OpenAI (text-embedding-3-small)
-
-## 📂 Arquitectura del Proyecto
-
-El proyecto ha sido refactorizado para seguir una estructura modular:
-
-```
-app/
-├── core/
-│   └── config.py          # Gestión de configuración y clientes (Singleton pattern)
-├── routers/
-│   └── chat.py            # Definición de endpoints API (Interface Layer)
-├── services/
-│   └── rag_service.py     # Lógica de negocio RAG (Chunking, Embedding, Retrieval)
-└── main.py                # Punto de entrada y composición de la aplicación
+## Architecture
+```mermaid
+graph TD
+    User -->|Query| API[FastAPI]
+    API -->|Embedding| OpenAI[OpenAI API]
+    API -->|Similarity Search| Supabase[(Supabase pgvector)]
+    Supabase -->|Context Chunks| API
+    API -->|Prompt + Context| LLM[Groq (Llama 3)]
+    LLM -->|Answer| User
 ```
 
-## 🔄 Flujo de Datos y Consistencia
+## Technical Decisions
 
-1.  **Ingesta de Datos**:
-    - Documentos institucionales se cargan vía endpoint `/upload`.
-    - **Productos**: Se sincronizan automáticamente desde el `products-service` mediante hooks de eventos.
-2.  **Generación de Embeddings**: Se utiliza `text-embedding-3-small` para vectorizar la información.
-3.  **Almacenamiento**: Los vectores se persisten en la tabla `rag_ucbcommerce_chunks` de Supabase.
-4.  **Recuperación (Retrieval)**:
-    - Ante una consulta del usuario, se genera el embedding de la pregunta.
-    - Se realiza una búsqueda de similitud semántica (cosine similarity) en Supabase.
-5.  **Generación (Generation)**:
-    - El contexto recuperado se inyecta en el prompt del sistema.
-    - El LLM genera una respuesta precisa basada estrictamente en la evidencia proporcionada.
+### Why Supabase (pgvector) over Pinecone/Weaviate?
+We chose **Supabase with pgvector** to keep our vector embeddings alongside our relational data (if needed) in a Postgres environment.
+- **SQL + Vectors**: It allows us to perform hybrid searches (e.g., "Find products similar to X BUT only in category Y") using standard SQL queries.
+- **Simplicity**: No need to manage a separate specialized vector database infrastructure.
 
-## 🚀 Instalación y Despliegue
+### Why RAG?
+We didn't just want a chatbot that "chats"; we wanted one that "knows". **RAG** allows us to inject real-time data (product prices, stock) into the LLM's context window. This solves the "hallucination" problem where AI models invent facts. Our bot cites its sources.
 
-### Prerrequisitos
+### Why Groq?
+We utilize **Groq** for LLM inference because of its unparalleled speed (LPU architecture). For a chatbot, latency is the killer of user experience. Groq delivers near-instant responses, making the conversation feel natural.
 
-- Python 3.10+
-- Acceso a Supabase (con extensión `vector` habilitada)
-- API Keys de OpenAI y Groq
+## Features
+- **Semantic Search**: Understands meaning, not just keywords.
+- **Real-time Inventory Awareness**: Knows if a product is out of stock.
+- **Hybrid Knowledge**: Combines product data with static institutional info (policies, hours).
 
-### Pasos
+## Tech Stack
+- **Language**: Python 3.10+
+- **Framework**: FastAPI
+- **Vector DB**: Supabase (PostgreSQL + pgvector)
+- **LLM**: Llama 3 via Groq
+- **Embeddings**: OpenAI text-embedding-3-small
 
-1.  **Instalar dependencias:**
+## Setup & Run
+
+1.  **Install dependencies:**
     ```bash
     pip install -r requirements.txt
     ```
 
-2.  **Configuración de Entorno (`.env`):**
-    ```env
-    OPENAI_API_KEY=sk-...
-    GROQ_API_KEY=gsk_...
-    SUPABASE_URL=https://...
-    SUPABASE_SERVICE_ROLE_KEY=...
-    ```
+2.  **Configure Environment Variables:**
+    Set up `.env` with OpenAI, Groq, and Supabase keys.
 
-3.  **Ejecutar el servicio:**
+3.  **Run Server:**
     ```bash
     uvicorn app.main:app --reload --port 8004
     ```
-
-## 📡 Endpoints Principales
-
-- `POST /chat`: Endpoint principal de interacción. Acepta `question` y devuelve `answer` + `chunks_used`.
-- `POST /upload`: Carga de documentos de texto plano para conocimiento institucional estático.
