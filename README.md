@@ -10,9 +10,9 @@ Standard e-commerce search bars are limited. Users often have complex questions 
 graph TD
     User -->|Query| API[FastAPI]
     API -->|Embedding| OpenAI[OpenAI API]
-    API -->|Similarity Search| Supabase[(Supabase pgvector)]
+    API -->|Similarity Search| Supabase[("Supabase pgvector")]
     Supabase -->|Context Chunks| API
-    API -->|Prompt + Context| LLM[Groq (Llama 3)]
+    API -->|Prompt + Context| LLM["Groq (Llama 3)"]
     LLM -->|Answer| User
 ```
 
