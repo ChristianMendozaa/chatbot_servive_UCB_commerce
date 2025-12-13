@@ -1,5 +1,6 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from app.services.rag_service import process_upload, get_answer
+from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from app.services.rag_service import process_upload
+from app.services.agent_service import run_agent
 
 router = APIRouter()
 
@@ -21,15 +22,20 @@ async def upload_file(file: UploadFile = File(...)):
         raise HTTPException(500, f"Error interno: {str(e)}")
 
 @router.post("/chat")
-async def chat(payload: dict):
+async def chat(request: Request, payload: dict):
     question = payload.get("question")
-    top_k = payload.get("top_k", 5)
-    source_id = payload.get("source_id")  # opcional
-
+    history = payload.get("history", [])
+    
     if not question:
         raise HTTPException(400, "Falta 'question'")
 
+    # Extraer cookies para pasarlas al agente
+    cookies = request.cookies
+
     try:
-        return get_answer(question, top_k, source_id)
+        # Ejecutar el agente
+        result = await run_agent(question, cookies, history)
+        return result
     except Exception as e:
+        print(f"Error en chat: {e}")
         raise HTTPException(500, f"Error interno: {str(e)}")
